@@ -1,53 +1,51 @@
+use cargo_metadata::{DependencyKind, Metadata, Package, PackageId};
+use clap::Parser;
+use dioxus::prelude::*;
+use dioxus_desktop::{Config, LogicalSize, WindowBuilder};
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
 };
 
-use cargo_metadata::{DependencyKind, Metadata, PackageId};
-use cargo_util::crate_root;
-use clap::Parser;
-use dioxus::prelude::*;
-use dioxus_desktop::Config;
-
 mod cargo_util;
 mod templates;
 
 fn main() {
-    use cargo_metadata::MetadataCommand;
-    let args = Args::try_parse().unwrap();
-
-    let mut cmd = MetadataCommand::new();
-
-    if let Some(path) = args.path {
-        cmd.manifest_path(path.join("Cargo.toml"));
-    };
-
-    let res = cmd.exec().unwrap();
-
     dioxus_desktop::launch_with_props(
         app,
-        AppProps(res),
-        Config::new().with_custom_head(
-            r#"
-<script src="https://cdn.tailwindcss.com"></script>
-"#
-            .to_string(),
+        collect_workspace_meta(),
+        Config::default().with_window(
+            WindowBuilder::new()
+                .with_title("Cargo Easy Release")
+                .with_inner_size(LogicalSize::new(500, 800)),
         ),
     );
 }
 
-struct AppProps(Metadata);
+fn app(cx: Scope<Metadata>) -> Element {
+    let graph = use_state(cx, || CrateGraph::new(&cx.props));
+    let released_crates = use_state(cx, || HashSet::<PackageId>::new());
+    let ignored_crates = use_state(cx, || {
+        cx.props
+            .packages
+            .iter()
+            .filter(|package| graph.crates.contains(&package.id) && package.publish == Some(vec![]))
+            .map(|package| package.id.clone())
+            .collect::<HashSet<PackageId>>()
+    });
+    let unrelease_crates = use_state(cx, || {
+        graph
+            .crates
+            .iter()
+            .filter(|f| !ignored_crates.contains(&f))
+            .cloned()
+            .collect::<HashSet<PackageId>>()
+    });
 
-fn app(cx: Scope<AppProps>) -> Element {
-    let graph = &*cx.use_hook(|| CrateGraph::new(&cx.props.0));
-
-    let mut released_crates = use_state(cx, || HashSet::<PackageId>::new());
-    let mut ignored_crates = use_state(cx, || HashSet::<PackageId>::new());
-    let mut unrelease_crates = use_state(cx, || graph.crates.clone());
-
-    let mut render_graph = use_render_graph(cx, graph);
+    let render_graph = use_render_graph(cx, graph);
 
     cx.render(rsx! {
+        script { src: "https://cdn.tailwindcss.com"  }
         section {
             class: "py-24 bg-white",
             style: "background-image: url('flex-ui-assets/elements/pattern-white.svg'); background-position: center;",
@@ -60,83 +58,47 @@ fn app(cx: Scope<AppProps>) -> Element {
                 }
 
                 div { class: "flex flex-row",
-                    div { class: "w-1/2",
+                    div { class: "",
                         h3 { class: "mb-4 text-md leading-tight font-medium text-coolGray-900 font-bold tracking-tighter",
-                            "Unreleased Crates"
+                            "Workspace Crates"
                         }
-                        render_graph.iter().filter_map(|(id, _)| {
-                            let package = cx.props.0.packages.iter().find(|p| p.id == *id).unwrap();
-
-                            if !unrelease_crates.contains(&id) {
-                                return None;
-                            }
-
-
-                            cx.render(rsx! {
-                                row_item {
-                                    name: package.name.clone(),
-                                    graph: graph,
-                                    meta: &cx.props.0,
-                                    description: package.description.clone().unwrap_or_default(),
-                                    package: package.id.clone(),
-                                    released_crates: released_crates.clone(),
-                                    unrelease_crates: unrelease_crates.clone(),
-                                    ignored_crates: ignored_crates.clone(),
-                                }
-                            })
-                        })
-                    }
-
-                    div { class: " w-1/2",
-                        h3 { class: "mb-4 text-md leading-tight font-medium text-coolGray-900 font-bold tracking-tighter",
-                            "Released Crates"
+                        div {
+                            input { r#type: "checkbox" }
+                            label { "Allow dirty?" }
+                            input { r#type: "checkbox" }
+                            label { "Dry run?" }
                         }
-                        released_crates.iter().filter_map(|id| {
-                            let package = cx.props.0.packages.iter().find(|p| p.id == *id).unwrap();
 
-                            cx.render(rsx! {
-                                row_item {
-                                    name: package.name.clone(),
-                                    graph: graph,
-                                    meta: &cx.props.0,
-                                    description: package.description.clone().unwrap_or_default(),
-                                    package: package.id.clone(),
-                                    released_crates: released_crates.clone(),
-                                    unrelease_crates: unrelease_crates.clone(),
-                                    ignored_crates: ignored_crates.clone(),
-                                }
-                            })
-                        }),
-
-
-                        (!ignored_crates.is_empty()).then(|| rsx! {
-                            div {
-                                class: "w-full border-t border-coolGray-200 mt-4 text-coolGray-500 text-center",
-                                "ignored"
+                        for (id, _) in render_graph.iter().filter(|id| !ignored_crates.contains(&id.0)) {
+                            row_item {
+                                graph: graph,
+                                meta: &cx.props,
+                                id: id.clone(),
+                                released_crates: released_crates.clone(),
+                                unrelease_crates: unrelease_crates.clone(),
+                                ignored_crates: ignored_crates.clone(),
                             }
-                        })
+                        }
 
-                        ignored_crates.iter().filter_map(|id| {
-                            let package = cx.props.0.packages.iter().find(|p| p.id == *id).unwrap();
-
-                            cx.render(rsx! {
-                                row_item {
-                                    name: package.name.clone(),
-                                    graph: graph,
-                                    meta: &cx.props.0,
-                                    description: package.description.clone().unwrap_or_default(),
-                                    package: package.id.clone(),
-                                    released_crates: released_crates.clone(),
-                                    unrelease_crates: unrelease_crates.clone(),
-                                    ignored_crates: ignored_crates.clone(),
+                        if !ignored_crates.is_empty() {
+                            rsx! {
+                                div {
+                                    class: "w-full border-t border-coolGray-200 mt-4 text-coolGray-500 text-center",
+                                    "ignored"
                                 }
-                            })
-                        }),
+                            }
+                        }
 
-                        // row_item { name: "asdasdasd".to_string(), description: "asdasdasd".to_string() }
-                        // row_item { name: "asdasdasd".to_string(), description: "asdasdasd".to_string() }
-                        // row_item { name: "asdasdasd".to_string(), description: "asdasdasd".to_string() }
-                        div {}
+                        for id in ignored_crates.iter() {
+                            row_item {
+                                graph: graph,
+                                meta: &cx.props,
+                                id: id.clone(),
+                                released_crates: released_crates.clone(),
+                                unrelease_crates: unrelease_crates.clone(),
+                                ignored_crates: ignored_crates.clone(),
+                            }
+                        }
                     }
                 }
             }
@@ -155,8 +117,6 @@ fn use_render_graph<'a>(
             .crates
             .iter()
             .map(|id| {
-                // let package = cx.props.0.packages.iter().find(|p| p.id == *id).unwrap();
-
                 // Count the number of direct dependencies
                 let mut num_deps = graph.ws_deps[id].len();
 
@@ -187,22 +147,21 @@ fn use_render_graph<'a>(
 #[inline_props]
 fn row_item<'a>(
     cx: Scope<'a>,
-    name: String,
+    // lol that's a lot of fields
     graph: &'a CrateGraph,
     meta: &'a Metadata,
-    description: String,
-    package: PackageId,
+    id: PackageId,
     released_crates: UseState<HashSet<PackageId>>,
     unrelease_crates: UseState<HashSet<PackageId>>,
     ignored_crates: UseState<HashSet<PackageId>>,
 ) -> Element {
-    let release_button = unrelease_crates.contains(package).then(|| rsx! {
+    let release_button = unrelease_crates.contains(id).then(|| rsx! {
         div { class: "w-full lg:w-1/3 px-4 lg:text-right",
             button {
                 class: "inline-flex ml-auto items-center font-medium leading-6 text-green-500 group-hover:text-green-600 transition duration-200",
                 onclick: move |_| {
-                    ignored_crates.make_mut().insert(package.clone());
-                    unrelease_crates.make_mut().remove(&package);
+                    ignored_crates.make_mut().insert(id.clone());
+                    unrelease_crates.make_mut().remove(&id);
                 },
                 span { class: "mr-2", "Ignore" }
                 templates::icons::icon_0 {}
@@ -210,14 +169,18 @@ fn row_item<'a>(
             button {
                 class: "inline-flex ml-auto items-center font-medium leading-6 text-green-500 group-hover:text-green-600 transition duration-200 ",
                 onclick: move |_| {
-                    released_crates.make_mut().insert(package.clone());
-                    unrelease_crates.make_mut().remove(&package);
+                    released_crates.make_mut().insert(id.clone());
+                    unrelease_crates.make_mut().remove(&id);
+
+                    // todo: write the new version out to that crate's cargo.toml
                 },
                 span { class: "mr-2", "Release" }
                 templates::icons::icon_0 {}
             }
         }
     });
+
+    let package = meta.packages.iter().find(|p| p.id == *id).unwrap();
 
     cx.render(rsx! {
         div { class: "w-full px-4 mb-8",
@@ -226,18 +189,19 @@ fn row_item<'a>(
                     div { class: "flex flex-wrap items-start justify-between p-2 -mx-4",
                         div { class: "w-full lg:w-2/3 px-4 mb-6 lg:mb-0",
                             h3 { class: "mb-3 text-md text-coolGray-800 group-hover:text-coolGray-900 font-semibold transition duration-200",
-                                "{name}"
+                                "{package.name}"
                             }
-                            p { class: "text-coolGray-500 font-sm", "{description}" }
+
+                            crate_description { package: package }
+
                             ul {
-                                graph.ws_deps[package].iter().map(|f| {
+                                graph.ws_deps[id].iter().map(|f| {
                                     let package = meta.packages.iter().find(|p| p.id == *f).unwrap();
                                     let emoij = if released_crates.contains(f) {
                                         "👍"
                                     } else {
                                         "👎"
                                     };
-
                                     cx.render(rsx! {
                                         li { "{emoij}" "{package.name}" }
                                     })
@@ -252,61 +216,38 @@ fn row_item<'a>(
     })
 }
 
-// cx.render(rsx! {
-//     div {
-//         padding_bottom: "1em",
-//         span {
-//             "{package.name}"
-//             button {
-//                 onclick: move |_| {
-//                     released_crates.make_mut().insert(id.clone());
-//                     unrelease_crates.make_mut().remove(id);
-//                 },
-//                 "Release",
-//             }
-//             button {
-//                 onclick: move |_| {
-//                     ignored_crates.make_mut().insert(id.clone());
-//                     unrelease_crates.make_mut().remove(id);
-//                 },
-//                 "Ignore",
-//             }
-//         }
-
-//         div {
-//             margin_left: "1em",
-//             graph.ws_deps[id].iter().map(|f| {
-//                 let package = cx.props.0.packages.iter().find(|p| p.id == *f).unwrap();
-//                 let emoij = if released_crates.contains(f) {
-//                     "👍"
-//                 } else {
-//                     "👎"
-//                 };
-
-//                 cx.render(rsx! {
-//                     div {
-//                         "{emoij}" "{package.name}"
-//                     }
-//                 })
-//             })
-//         }
-//     }
-// })
-
 #[inline_props]
-fn member_child<'a>(cx: Scope<'a>, meta: &'a Metadata, package: PackageId) -> Element {
-    let package = meta.packages.iter().find(|p| p.id == *package).unwrap();
+fn crate_description<'a>(cx: Scope<'a>, package: &'a Package) -> Element {
+    // // todo: download the metadata from the crates index using reqwest/downloader
+    // let url = format!(
+    //     "https://raw.githubusercontent.com/rust-lang/crates.io-index/master/{}/{}/{}",
+    //     package.name.chars().next().unwrap(),
+    //     package.name.chars().nth(1).unwrap(),
+    //     package.name
+    // );
 
-    // todo: fix this
-    let url = format!(
-        "https://raw.githubusercontent.com/rust-lang/crates.io-index/master/{}/{}/{}",
-        package.name.chars().next().unwrap(),
-        package.name.chars().nth(1).unwrap(),
-        package.name
-    );
-
+    // Required fields include name, version, edition, edition, keywords, description, license, authors, license, tags, description
+    //
+    // name = "dioxus-liveview"
+    // version = "0.3.0"
+    // edition = "2021"
+    // keywords = ["dom", "ui", "gui", "react", "wasm"]
+    // description = "Build server-side apps with Dioxus"
+    // license = "MIT/Apache-2.0"
+    //
+    // homepage = "https://dioxuslabs.com"
+    // documentation = "https://dioxuslabs.com"
+    // repository = "https://github.com/DioxusLabs/dioxus/"
     cx.render(rsx! {
-        div { a { href: "{url}", prevent_default: "click", onclick: move |_| webbrowser::open(&url).unwrap(), "{package.name}" } }
+        div { class: "text-coolGray-500 font-sm flex flex-col",
+            // todo: throw an error if the version here matches the same version on crates, since
+            // crates will reject that version
+            span { "Version: " package.version.to_string() }
+            span { "Edition: " package.edition.to_string() }
+            span { "Keywords: " package.keywords.iter().map(|k| rsx!( "{k}, " )) }
+            span { "License: " package.license.as_deref().unwrap_or("❌ missing") }
+            span { "Description: " package.description.as_deref().unwrap_or("❌ missing") }
+        }
     })
 }
 
@@ -368,4 +309,17 @@ impl CrateGraph {
             ws_deps: deps,
         }
     }
+}
+
+fn collect_workspace_meta() -> Metadata {
+    use cargo_metadata::MetadataCommand;
+    let args = Args::try_parse().unwrap();
+
+    let mut cmd = MetadataCommand::new();
+
+    if let Some(path) = args.path {
+        cmd.manifest_path(path.join("Cargo.toml"));
+    };
+
+    cmd.exec().unwrap()
 }
