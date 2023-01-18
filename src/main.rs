@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 use cargo_metadata::{DependencyKind, Metadata, Package, PackageId};
 use clap::Parser;
 use dioxus::prelude::*;
@@ -14,11 +16,13 @@ fn main() {
     dioxus_desktop::launch_with_props(
         app,
         collect_workspace_meta(),
-        Config::default().with_window(
-            WindowBuilder::new()
-                .with_title("Cargo Easy Release")
-                .with_inner_size(LogicalSize::new(500, 800)),
-        ),
+        Config::default()
+            .with_window(
+                WindowBuilder::new()
+                    .with_title("Cargo Easy Release")
+                    .with_inner_size(LogicalSize::new(500, 800)),
+            )
+            .with_custom_head(r#"<script src="https://cdn.tailwindcss.com"></script>"#.into()),
     );
 }
 
@@ -45,7 +49,6 @@ fn app(cx: Scope<Metadata>) -> Element {
     let render_graph = use_render_graph(cx, graph);
 
     cx.render(rsx! {
-        script { src: "https://cdn.tailwindcss.com"  }
         section {
             class: "py-24 bg-white",
             style: "background-image: url('flex-ui-assets/elements/pattern-white.svg'); background-position: center;",
@@ -192,21 +195,9 @@ fn row_item<'a>(
                                 "{package.name}"
                             }
 
-                            crate_description { package: package }
+                            Description { package: package }
 
-                            ul {
-                                graph.ws_deps[id].iter().map(|f| {
-                                    let package = meta.packages.iter().find(|p| p.id == *f).unwrap();
-                                    let emoij = if released_crates.contains(f) {
-                                        "👍"
-                                    } else {
-                                        "👎"
-                                    };
-                                    cx.render(rsx! {
-                                        li { "{emoij}" "{package.name}" }
-                                    })
-                                })
-                            }
+                            // CrateDeps { graph: graph, id: id.clone(), meta: meta, released_crates: released_crates.clone() }
                         }
                         release_button
                     }
@@ -217,7 +208,32 @@ fn row_item<'a>(
 }
 
 #[inline_props]
-fn crate_description<'a>(cx: Scope<'a>, package: &'a Package) -> Element {
+fn CrateDeps<'a>(
+    cx: Scope<'a>,
+    graph: &'a CrateGraph,
+    meta: &'a Metadata,
+    id: PackageId,
+    released_crates: UseState<HashSet<PackageId>>,
+) -> Element {
+    cx.render(rsx! {
+        ul {
+            graph.ws_deps[id].iter().map(|f| {
+                let package = meta.packages.iter().find(|p| p.id == *f).unwrap();
+                let emoij = if released_crates.contains(f) {
+                    "👍"
+                } else {
+                    "👎"
+                };
+                cx.render(rsx! {
+                    li { "{emoij}" "{package.name}" }
+                })
+            })
+        }
+    })
+}
+
+#[inline_props]
+fn Description<'a>(cx: Scope<'a>, package: &'a Package) -> Element {
     // // todo: download the metadata from the crates index using reqwest/downloader
     // let url = format!(
     //     "https://raw.githubusercontent.com/rust-lang/crates.io-index/master/{}/{}/{}",
@@ -242,10 +258,17 @@ fn crate_description<'a>(cx: Scope<'a>, package: &'a Package) -> Element {
         div { class: "text-coolGray-500 font-sm flex flex-col",
             // todo: throw an error if the version here matches the same version on crates, since
             // crates will reject that version
-            span { "Version: " package.version.to_string() }
-            span { "Edition: " package.edition.to_string() }
-            span { "Keywords: " package.keywords.iter().map(|k| rsx!( "{k}, " )) }
-            span { "License: " package.license.as_deref().unwrap_or("❌ missing") }
+            // span { "Version: " package.version.to_string() }
+            // span { "Edition: " package.edition.to_string() }
+            // span {
+            //     "Keywords: "
+            //     if package.keywords.is_empty() {
+            //         render! { "❌ missing" }
+            //     } else {
+            //         render! ( package.keywords.iter().map(|k| render!( "{k}, " )) )
+            //     }
+            // }
+            // span { "License: " package.license.as_deref().unwrap_or("❌ missing") }
             span { "Description: " package.description.as_deref().unwrap_or("❌ missing") }
         }
     })
