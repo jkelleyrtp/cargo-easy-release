@@ -73,7 +73,7 @@ fn app(cx: Scope<Metadata>) -> Element {
                         }
 
                         h2 {  class: "text-gray-500 font-medium text-md mb-2",
-                            "/Users/alexander/Projects/dioxus/cargo-easy-release"
+                            "{cx.props.workspace_root}"
                         }
                     }
                     p { class: "text-gray-800",
@@ -98,6 +98,9 @@ fn app(cx: Scope<Metadata>) -> Element {
                                 label { "Allow dirty?" }
                                 input { r#type: "checkbox" }
                                 label { "Dry run?" }
+                                button {
+                                    "Refresh"
+                                }
                             }
                         }
 
@@ -218,7 +221,7 @@ fn RowItem<'a>(
     let package = meta.packages.iter().find(|p| p.id == *id).unwrap();
 
     cx.render(rsx! {
-        div { class: "p-2 w-full mb-8 h-64 bg-gray-50 group-hover:bg-gray-100 rounded-md shadow-md transition duration-200 flex flex-col justify-between",
+        div { class: "p-2 w-full mb-8 h-56 bg-gray-50 group-hover:bg-gray-100 rounded-md shadow-md transition duration-200 flex flex-col justify-between",
             div { class: "w-full",
                 h3 { class: "mb-2 text-md text-gray-800 group-hover:text-gray-900 font-semibold transition duration-200 font-mono flex flex-row justify-between",
                     span { "{package.name}" }
