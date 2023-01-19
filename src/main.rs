@@ -20,7 +20,7 @@ fn main() {
             .with_window(
                 WindowBuilder::new()
                     .with_title("Cargo Easy Release")
-                    .with_inner_size(LogicalSize::new(500, 800)),
+                    .with_inner_size(LogicalSize::new(1600, 1200)),
             )
             .with_custom_head(r#"<script src="https://cdn.tailwindcss.com"></script>"#.into()),
     );
@@ -50,58 +50,90 @@ fn app(cx: Scope<Metadata>) -> Element {
 
     cx.render(rsx! {
         section {
-            class: "py-24 bg-white",
+            class: "py-12 bg-white  font-mono",
             style: "background-image: url('flex-ui-assets/elements/pattern-white.svg'); background-position: center;",
-            div { class: "container px-4 mx-auto",
-                div { class: "max-w-3xl mb-12",
-                    h3 { class: "mb-4 text-3xl md:text-4xl leading-tight font-medium text-coolGray-900 font-bold tracking-tighter",
-                        "Cargo Easy Release"
-                    }
-                    p { class: "text-lg md:text-xl text-coolGray-500 font-medium", "Easily release your workspace crates to crates.io" }
-                }
 
-                div { class: "flex flex-row",
-                    div { class: "",
-                        h3 { class: "mb-4 text-md leading-tight font-medium text-coolGray-900 font-bold tracking-tighter",
-                            "Workspace Crates"
-                        }
-                        div {
-                            input { r#type: "checkbox" }
-                            label { "Allow dirty?" }
-                            input { r#type: "checkbox" }
-                            label { "Dry run?" }
-                        }
+            div { class: "container px-4 mx-auto max-w-screen-2xl",
+                div { class: "mb-12",
+                    div { class: "mb-8",
+                        div { class: "flex flex-row justify-between",
+                            h3 { class: "text-4xl md:text-4xl leading-tight font-medium text-gray-900 font-bold tracking-tighter mb-1",
+                                "Easy Release"
 
-                        for (id, _) in render_graph.iter().filter(|id| !ignored_crates.contains(&id.0)) {
-                            row_item {
-                                graph: graph,
-                                meta: &cx.props,
-                                id: id.clone(),
-                                released_crates: released_crates.clone(),
-                                unrelease_crates: unrelease_crates.clone(),
-                                ignored_crates: ignored_crates.clone(),
+                                span { class: "text-gray-500",
+                                    " v0.1.0"
+                                }
                             }
-                        }
-
-                        if !ignored_crates.is_empty() {
-                            rsx! {
-                                div {
-                                    class: "w-full border-t border-coolGray-200 mt-4 text-coolGray-500 text-center",
-                                    "ignored"
+                            div { class: "flex flex-col text-right",
+                                span { "View on Github" }
+                                h2 {  class: "text-gray-500 font-medium text-md mb-1",
+                                    "With ❤️ from Dioxus Labs"
                                 }
                             }
                         }
 
-                        for id in ignored_crates.iter() {
-                            row_item {
-                                graph: graph,
-                                meta: &cx.props,
-                                id: id.clone(),
-                                released_crates: released_crates.clone(),
-                                unrelease_crates: unrelease_crates.clone(),
-                                ignored_crates: ignored_crates.clone(),
+                        h2 {  class: "text-gray-500 font-medium text-md mb-2",
+                            "/Users/alexander/Projects/dioxus/cargo-easy-release"
+                        }
+                    }
+                    p { class: "text-gray-800",
+                        ul {
+                            li { "12 workspace crates found" }
+                            li { "7 crates out of date" }
+                            li { "14 breaking API changes" }
+                            li { "3 crates need fixes to be released" }
+                        }
+                    }
+                }
+
+                div { class: "flex flex-row",
+                    div { class: "",
+                        div { class: "border-b border-gray-200 mb-4 pb-2 flex flex-row justify-between",
+                            h3 { class: "text-md leading-tight font-medium text-gray-900 font-bold",
+                                "Workspace Crates (12)"
+                            }
+
+                            div {
+                                input { r#type: "checkbox" }
+                                label { "Allow dirty?" }
+                                input { r#type: "checkbox" }
+                                label { "Dry run?" }
                             }
                         }
+
+                        div { class: "grid grid-cols-3 gap-4 justify-between",
+                            for (id, _) in render_graph.iter().filter(|id| !ignored_crates.contains(&id.0)) {
+                                RowItem {
+                                    graph: graph,
+                                    meta: &cx.props,
+                                    id: id.clone(),
+                                    released_crates: released_crates.clone(),
+                                    unrelease_crates: unrelease_crates.clone(),
+                                    ignored_crates: ignored_crates.clone(),
+                                }
+                            }
+                        }
+
+
+                        // if !ignored_crates.is_empty() {
+                        //     rsx! {
+                        //         div {
+                        //             class: "w-full border-t border-gray-200 mt-4 text-gray-500 text-center",
+                        //             "ignored"
+                        //         }
+                        //     }
+                        // }
+
+                        // for id in ignored_crates.iter() {
+                        //     row_item {
+                        //         graph: graph,
+                        //         meta: &cx.props,
+                        //         id: id.clone(),
+                        //         released_crates: released_crates.clone(),
+                        //         unrelease_crates: unrelease_crates.clone(),
+                        //         ignored_crates: ignored_crates.clone(),
+                        //     }
+                        // }
                     }
                 }
             }
@@ -148,7 +180,7 @@ fn use_render_graph<'a>(
 }
 
 #[inline_props]
-fn row_item<'a>(
+fn RowItem<'a>(
     cx: Scope<'a>,
     // lol that's a lot of fields
     graph: &'a CrateGraph,
@@ -159,9 +191,9 @@ fn row_item<'a>(
     ignored_crates: UseState<HashSet<PackageId>>,
 ) -> Element {
     let release_button = unrelease_crates.contains(id).then(|| rsx! {
-        div { class: "w-full lg:w-1/3 px-4 lg:text-right",
+        div { class: "w-full pb-2 text-xs pl-2",
             button {
-                class: "inline-flex ml-auto items-center font-medium leading-6 text-green-500 group-hover:text-green-600 transition duration-200",
+                class: "inline-flex ml-auto items-center font-medium leading-6 text-gray-500 group-hover:text-green-600 transition duration-200 pr-2",
                 onclick: move |_| {
                     ignored_crates.make_mut().insert(id.clone());
                     unrelease_crates.make_mut().remove(&id);
@@ -169,13 +201,13 @@ fn row_item<'a>(
                 span { class: "mr-2", "Ignore" }
                 templates::icons::icon_0 {}
             }
+
             button {
                 class: "inline-flex ml-auto items-center font-medium leading-6 text-green-500 group-hover:text-green-600 transition duration-200 ",
                 onclick: move |_| {
-                    released_crates.make_mut().insert(id.clone());
-                    unrelease_crates.make_mut().remove(&id);
-
-                    // todo: write the new version out to that crate's cargo.toml
+                    // released_crates.make_mut().insert(id.clone());
+                    // unrelease_crates.make_mut().remove(&id);
+                    println!("attempting to release crate..");
                 },
                 span { class: "mr-2", "Release" }
                 templates::icons::icon_0 {}
@@ -186,23 +218,49 @@ fn row_item<'a>(
     let package = meta.packages.iter().find(|p| p.id == *id).unwrap();
 
     cx.render(rsx! {
-        div { class: "w-full px-4 mb-8",
-            a { class: "group", href: "#",
-                div { class: "bg-coolGray-50 group-hover:bg-coolGray-100 rounded-md shadow-md transition duration-200",
-                    div { class: "flex flex-wrap items-start justify-between p-2 -mx-4",
-                        div { class: "w-full lg:w-2/3 px-4 mb-6 lg:mb-0",
-                            h3 { class: "mb-3 text-md text-coolGray-800 group-hover:text-coolGray-900 font-semibold transition duration-200",
-                                "{package.name}"
-                            }
-
-                            Description { package: package }
-
-                            // CrateDeps { graph: graph, id: id.clone(), meta: meta, released_crates: released_crates.clone() }
-                        }
-                        release_button
-                    }
+        div { class: "p-2 w-full mb-8 h-64 bg-gray-50 group-hover:bg-gray-100 rounded-md shadow-md transition duration-200 flex flex-col justify-between",
+            div { class: "w-full",
+                h3 { class: "mb-2 text-md text-gray-800 group-hover:text-gray-900 font-semibold transition duration-200 font-mono flex flex-row justify-between",
+                    span { "{package.name}" }
+                    span { class: "text-gray-500 ml-2", "{package.version}" }
                 }
+
+                div { class: "text-gray-500 text-xs flex flex-col",
+                    div {
+                        if package.keywords.is_empty() {
+                            render! { "❌ Missing keywords" }
+                        } else {
+                            render! ( "✅ ", package.keywords.iter().map(|k| render!( "{k}, " )) )
+                        }
+                    }
+
+
+
+                    // todo: throw an error if the version here matches the same version on crates, since
+                    // crates will reject that version
+                    div {
+                        if package.authors.is_empty() {
+                            render! { "❌ Missing authors" }
+                        } else {
+                            render! ( "✅ ", package.authors.iter().map(|k| render!( "{k}, " )) )
+                        }
+                    }
+                    div { "✅ ", "Edition {package.edition}" }
+                    div {
+                        if let Some(license) = package.license.as_deref() {
+                            render! { "✅ ", license }
+                        } else {
+                            render!{ "❌ Missing license" }
+                        }
+                    }
+
+                    span { class: "text-xs py-4", package.description.as_deref().unwrap_or("❌ Missing Description") }
+
+                }
+
+                // CrateDeps { graph: graph, id: id.clone(), meta: meta, released_crates: released_crates.clone() }
             }
+            release_button
         }
     })
 }
@@ -232,47 +290,53 @@ fn CrateDeps<'a>(
     })
 }
 
-#[inline_props]
-fn Description<'a>(cx: Scope<'a>, package: &'a Package) -> Element {
-    // // todo: download the metadata from the crates index using reqwest/downloader
-    // let url = format!(
-    //     "https://raw.githubusercontent.com/rust-lang/crates.io-index/master/{}/{}/{}",
-    //     package.name.chars().next().unwrap(),
-    //     package.name.chars().nth(1).unwrap(),
-    //     package.name
-    // );
+// #[inline_props]
+// fn Description<'a>(cx: Scope<'a>, package: &'a Package) -> Element {
+//     // // todo: download the metadata from the crates index using reqwest/downloader
+//     // let url = format!(
+//     //     "https://raw.githubusercontent.com/rust-lang/crates.io-index/master/{}/{}/{}",
+//     //     package.name.chars().next().unwrap(),
+//     //     package.name.chars().nth(1).unwrap(),
+//     //     package.name
+//     // );
 
-    // Required fields include name, version, edition, edition, keywords, description, license, authors, license, tags, description
-    //
-    // name = "dioxus-liveview"
-    // version = "0.3.0"
-    // edition = "2021"
-    // keywords = ["dom", "ui", "gui", "react", "wasm"]
-    // description = "Build server-side apps with Dioxus"
-    // license = "MIT/Apache-2.0"
-    //
-    // homepage = "https://dioxuslabs.com"
-    // documentation = "https://dioxuslabs.com"
-    // repository = "https://github.com/DioxusLabs/dioxus/"
-    cx.render(rsx! {
-        div { class: "text-coolGray-500 font-sm flex flex-col",
-            // todo: throw an error if the version here matches the same version on crates, since
-            // crates will reject that version
-            // span { "Version: " package.version.to_string() }
-            // span { "Edition: " package.edition.to_string() }
-            // span {
-            //     "Keywords: "
-            //     if package.keywords.is_empty() {
-            //         render! { "❌ missing" }
-            //     } else {
-            //         render! ( package.keywords.iter().map(|k| render!( "{k}, " )) )
-            //     }
-            // }
-            // span { "License: " package.license.as_deref().unwrap_or("❌ missing") }
-            span { "Description: " package.description.as_deref().unwrap_or("❌ missing") }
-        }
-    })
-}
+//     // Required fields include name, version, edition, edition, keywords, description, license, authors, license, tags, description
+//     //
+//     // name = "dioxus-liveview"
+//     // version = "0.3.0"
+//     // edition = "2021"
+//     // keywords = ["dom", "ui", "gui", "react", "wasm"]
+//     // description = "Build server-side apps with Dioxus"
+//     // license = "MIT/Apache-2.0"
+//     //
+//     // homepage = "https://dioxuslabs.com"
+//     // documentation = "https://dioxuslabs.com"
+//     // repository = "https://github.com/DioxusLabs/dioxus/"
+//     cx.render(rsx! {
+//         div { class: "text-gray-500 text-xs flex flex-col",
+//             // todo: throw an error if the version here matches the same version on crates, since
+//             // crates will reject that version
+//             div {
+//                 if package.authors.is_empty() {
+//                     render! { "Missing authors" }
+//                 } else {
+//                     render! ( package.authors.iter().map(|k| render!( "{k}, " )) )
+//                 }
+//             }
+//             div { "Version {package.version}", }
+//             div { "Edition {package.edition}" }
+//             div {
+//                 if package.keywords.is_empty() {
+//                     render! { "Missing keywords" }
+//                 } else {
+//                     render! ( package.keywords.iter().map(|k| render!( "{k}, " )) )
+//                 }
+//             }
+//             span { "License: " package.license.as_deref().unwrap_or("❌ missing") }
+//             span { class: "text-xs", package.description.as_deref().unwrap_or("❌ missing") }
+//         }
+//     })
+// }
 
 #[derive(clap::Parser)]
 struct Args {
