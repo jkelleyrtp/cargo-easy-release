@@ -8,6 +8,7 @@ use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
 };
+use tokio::process::Command;
 
 mod cargo_util;
 mod templates;
@@ -53,32 +54,28 @@ fn app(cx: Scope<Metadata>) -> Element {
             class: "py-12 bg-white  font-mono",
             style: "background-image: url('flex-ui-assets/elements/pattern-white.svg'); background-position: center;",
 
-            div { class: "container px-4 mx-auto max-w-screen-2xl",
+            div { class: "container px-4 mx-auto max-w-screen-xl",
                 div { class: "mb-12",
                     div { class: "mb-8",
                         div { class: "flex flex-row justify-between",
                             h3 { class: "text-4xl md:text-4xl leading-tight font-medium text-gray-900 font-bold tracking-tighter mb-1",
                                 "Easy Release"
 
-                                span { class: "text-gray-500",
-                                    " v0.1.0"
-                                }
+                                span { class: "text-gray-500", " v0.1.0" }
                             }
                             div { class: "flex flex-col text-right",
                                 span { "View on Github" }
-                                h2 {  class: "text-gray-500 font-medium text-md mb-1",
+                                h2 { class: "text-gray-500 font-medium text-md mb-1",
                                     "With ❤️ from Dioxus Labs"
                                 }
                             }
                         }
 
-                        h2 {  class: "text-gray-500 font-medium text-md mb-2",
-                            "{cx.props.workspace_root}"
-                        }
+                        h2 { class: "text-gray-500 font-medium text-md mb-2", "{cx.props.workspace_root}" }
                     }
                     p { class: "text-gray-800",
                         ul {
-                            li { "12 workspace crates found" }
+                            li { "{graph.crates.len()} workspace crates found" }
                             li { "7 crates out of date" }
                             li { "14 breaking API changes" }
                             li { "3 crates need fixes to be released" }
@@ -98,14 +95,33 @@ fn app(cx: Scope<Metadata>) -> Element {
                                 label { "Allow dirty?" }
                                 input { r#type: "checkbox" }
                                 label { "Dry run?" }
-                                button {
-                                    "Refresh"
-                                }
+                                button { "Refresh" }
                             }
                         }
 
                         div { class: "grid grid-cols-3 gap-4 justify-between",
-                            for (id, _) in render_graph.iter().filter(|id| !ignored_crates.contains(&id.0)) {
+                            for (id , _) in render_graph.iter().filter(|id| !ignored_crates.contains(&id.0)) {
+                                RowItem {
+                                    graph: graph,
+                                    meta: &cx.props,
+                                    id: id.clone(),
+                                    released_crates: released_crates.clone(),
+                                    unrelease_crates: unrelease_crates.clone(),
+                                    ignored_crates: ignored_crates.clone()
+                                }
+                            }
+
+
+                            if !ignored_crates.is_empty() {
+                                rsx! {
+                                    div {
+                                        class: "w-full border-t border-gray-200 mt-4 text-gray-500 text-center",
+                                        "ignored"
+                                    }
+                                }
+                            }
+
+                            for id in ignored_crates.iter() {
                                 RowItem {
                                     graph: graph,
                                     meta: &cx.props,
@@ -116,27 +132,6 @@ fn app(cx: Scope<Metadata>) -> Element {
                                 }
                             }
                         }
-
-
-                        // if !ignored_crates.is_empty() {
-                        //     rsx! {
-                        //         div {
-                        //             class: "w-full border-t border-gray-200 mt-4 text-gray-500 text-center",
-                        //             "ignored"
-                        //         }
-                        //     }
-                        // }
-
-                        // for id in ignored_crates.iter() {
-                        //     row_item {
-                        //         graph: graph,
-                        //         meta: &cx.props,
-                        //         id: id.clone(),
-                        //         released_crates: released_crates.clone(),
-                        //         unrelease_crates: unrelease_crates.clone(),
-                        //         ignored_crates: ignored_crates.clone(),
-                        //     }
-                        // }
                     }
                 }
             }
@@ -176,6 +171,10 @@ fn use_render_graph<'a>(
             })
             .collect::<Vec<_>>();
 
+        // first, sort alphebetically. This is so that the crates with the same number of dependencies are sorted
+        render_graph.sort_by_key(|(id, _)| id.to_string());
+
+        // then sort by the number of dependencies, keeping the alphabetical order
         render_graph.sort_by_key(|(_, num_deps)| *num_deps);
 
         render_graph
@@ -193,6 +192,46 @@ fn RowItem<'a>(
     unrelease_crates: UseState<HashSet<PackageId>>,
     ignored_crates: UseState<HashSet<PackageId>>,
 ) -> Element {
+    let release_crate = move |_| {
+        // spawn a tokio task and attach it to stdio
+        let manifest_path = meta
+            .packages
+            .iter()
+            .find(|p| &p.id == id)
+            .unwrap()
+            .manifest_path
+            .clone();
+
+        cx.spawn(async move {
+            let mut child = Command::new("cargo")
+                .arg("publish")
+                .arg("--allow-dirty")
+                .arg("--dry-run")
+                .arg("--manifest-path")
+                .arg(manifest_path)
+                .spawn()
+                .unwrap();
+
+            child.wait().await.unwrap();
+        });
+    };
+
+    let package = meta.packages.iter().find(|p| &p.id == id).unwrap();
+    let package_has_local_deps = package.dependencies.iter().any(|dep| {
+        // If the source is a git repo, then it's a local dep
+        if dep
+            .source
+            .as_ref()
+            .map(|s| s.starts_with("git+"))
+            .unwrap_or(false)
+        {
+            return true;
+        }
+
+        // If the source is a path with no version, then it's a local dep
+        dep.path.is_some() && dep.kind == DependencyKind::Normal && dep.req.comparators.is_empty()
+    });
+
     let release_button = unrelease_crates.contains(id).then(|| rsx! {
         div { class: "w-full pb-2 text-xs pl-2",
             button {
@@ -207,11 +246,7 @@ fn RowItem<'a>(
 
             button {
                 class: "inline-flex ml-auto items-center font-medium leading-6 text-green-500 group-hover:text-green-600 transition duration-200 ",
-                onclick: move |_| {
-                    // released_crates.make_mut().insert(id.clone());
-                    // unrelease_crates.make_mut().remove(&id);
-                    println!("attempting to release crate..");
-                },
+                onclick: release_crate,
                 span { class: "mr-2", "Release" }
                 templates::icons::icon_0 {}
             }
@@ -237,8 +272,6 @@ fn RowItem<'a>(
                         }
                     }
 
-
-
                     // todo: throw an error if the version here matches the same version on crates, since
                     // crates will reject that version
                     div {
@@ -256,12 +289,16 @@ fn RowItem<'a>(
                             render!{ "❌ Missing license" }
                         }
                     }
+                    if package_has_local_deps {
+                        rsx! { div { "❌ Has local dependencies" } }
+                    } else {
+                        rsx! { div { "✅ No local dependencies" } }
+                    }
 
-                    span { class: "text-xs py-4", package.description.as_deref().unwrap_or("❌ Missing Description") }
-
+                    span { class: "text-xs py-4",
+                        package.description.as_deref().unwrap_or("❌ Missing Description")
+                    }
                 }
-
-                // CrateDeps { graph: graph, id: id.clone(), meta: meta, released_crates: released_crates.clone() }
             }
             release_button
         }
