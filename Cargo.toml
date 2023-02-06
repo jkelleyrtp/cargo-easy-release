@@ -10,11 +10,16 @@ anyhow = "1.0.68"
 cargo_metadata = "0.15.2"
 cargo_toml = "0.14.0"
 clap = { version = "4.0.32", features = ["derive"] }
-dioxus = { version = "0.3.1", git = "https://github.com/dioxuslabs/dioxus.git" }
-dioxus-desktop = { version = "0.3.0", git = "https://github.com/dioxuslabs/dioxus.git" }
+layout-rs = "0.1.1"
 reqwest = { version = "0.11.13", features = ["json"] }
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = "1.0.91"
 tokio = { version = "1.23.1", features = ["full"] }
 toml = "0.5.10"
 webbrowser = "0.8.4"
+public-api = "0.27.1"
+dioxus = { version = "0.3.1", git = "https://github.com/dioxuslabs/dioxus.git" }
+dioxus-signals = { git = "https://github.com/dioxuslabs/dioxus.git" }
+dioxus-desktop = { version = "0.3.0", git = "https://github.com/dioxuslabs/dioxus.git" }
+fermi = { version = "0.3.0", git = "https://github.com/dioxuslabs/dioxus.git" }
+toml_edit = "0.19.1"
